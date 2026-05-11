@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './components/Header';
 import Dropzone from './components/Dropzone';
 import BackgroundUploader from './components/BackgroundUploader';
@@ -10,19 +10,85 @@ export default function App() {
   const [isHtml, setIsHtml] = useState(false);
   const [fileName, setFileName] = useState('');
   const [background, setBackground] = useState('');
-  const [downloadFormat, setDownloadFormat] = useState('pdf');
-  const [paperType, setPaperType] = useState('A4'); // Preset name or 'custom'
-  const [paperWidth, setPaperWidth] = useState(210); // in mm
-  const [paperHeight, setPaperHeight] = useState(297); // in mm
+  const [paperType, setPaperType] = useState('A4');
+  const [paperWidth, setPaperWidth] = useState(210);
+  const [paperHeight, setPaperHeight] = useState(297);
   const [marginTop, setMarginTop] = useState(40);
   const [marginBottom, setMarginBottom] = useState(30);
   const [marginX, setMarginX] = useState(25);
   const [pageColor, setPageColor] = useState('#ffffff');
   const [contentColor, setContentColor] = useState('#ffffff');
-  const [fontSize, setFontSize] = useState(12); // in pt
+  const [fontSize, setFontSize] = useState(12);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [status, setStatus] = useState('idle'); // 'idle' | 'generating' | 'success' | 'error'
+  const [status, setStatus] = useState('idle');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // ── Undo / Redo History ──
+  const historyRef = useRef([{ content: '', isHtml: false }]);
+  const historyIndexRef = useRef(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const skipHistoryRef = useRef(false);
+
+  const pushHistory = useCallback((newContent, newIsHtml) => {
+    if (skipHistoryRef.current) return;
+    const idx = historyIndexRef.current;
+    // Trim future states
+    historyRef.current = historyRef.current.slice(0, idx + 1);
+    historyRef.current.push({ content: newContent, isHtml: newIsHtml });
+    // Limit to 50 entries
+    if (historyRef.current.length > 50) historyRef.current.shift();
+    historyIndexRef.current = historyRef.current.length - 1;
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(false);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current--;
+    const state = historyRef.current[historyIndexRef.current];
+    skipHistoryRef.current = true;
+    setContent(state.content);
+    setIsHtml(state.isHtml);
+    skipHistoryRef.current = false;
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current++;
+    const state = historyRef.current[historyIndexRef.current];
+    skipHistoryRef.current = true;
+    setContent(state.content);
+    setIsHtml(state.isHtml);
+    skipHistoryRef.current = false;
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+  }, []);
+
+  // Keyboard shortcuts: Ctrl+Z / Ctrl+Y
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleUndo, handleRedo]);
+
+  // Wrapped setContent that also pushes to history
+  const updateContent = useCallback((val, html) => {
+    setContent(val);
+    setIsHtml(!!html);
+    pushHistory(val, !!html);
+  }, [pushHistory]);
 
   const canGenerate = content.trim().length > 0 && background.length > 0;
 
@@ -34,10 +100,7 @@ export default function App() {
     setErrorMsg('');
 
     try {
-      let endpoint = '/api/generate-pdf';
-      if (downloadFormat === 'html') endpoint = '/api/generate-html';
-      if (downloadFormat === 'docs') endpoint = '/api/generate-docx';
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -66,8 +129,8 @@ export default function App() {
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName
-        ? fileName.replace(/\.(md|txt|docx)$/i, downloadFormat === 'docs' ? '.doc' : `.${downloadFormat}`)
-        : `widocs-document.${downloadFormat === 'docs' ? 'doc' : downloadFormat}`;
+        ? fileName.replace(/\.(md|txt|docx)$/i, '.pdf')
+        : 'widocs-document.pdf';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -301,10 +364,7 @@ export default function App() {
             {/* Markdown dropzone */}
             <Dropzone
               content={content}
-              onContentChange={(val, html) => {
-                setContent(val);
-                setIsHtml(!!html);
-              }}
+              onContentChange={(val, html) => updateContent(val, html)}
               fileName={fileName}
               onFileNameChange={setFileName}
             />
@@ -325,45 +385,6 @@ export default function App() {
               </div>
             )}
 
-            {/* ── Format Selection ── */}
-            <div className="mb-4">
-              <label className="label !mb-1.5 px-1">Formato de Salida</label>
-              <div className="flex p-1 rounded-xl bg-surface-900/80 border border-surface-800/60 shadow-inner">
-                <button
-                  onClick={() => setDownloadFormat('pdf')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold transition-all duration-200 ${
-                    downloadFormat === 'pdf'
-                      ? 'bg-accent-600/20 text-accent-300 shadow-sm border border-accent-500/20'
-                      : 'text-surface-500 hover:text-surface-300'
-                  }`}
-                >
-                  <IconFile className="w-3 h-3" />
-                  PDF
-                </button>
-                <button
-                  onClick={() => setDownloadFormat('html')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold transition-all duration-200 ${
-                    downloadFormat === 'html'
-                      ? 'bg-emerald-600/20 text-emerald-400 shadow-sm border border-emerald-500/20'
-                      : 'text-surface-500 hover:text-surface-300'
-                  }`}
-                >
-                  <IconDocument className="w-3 h-3" />
-                  HTML
-                </button>
-                <button
-                  onClick={() => setDownloadFormat('docs')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold transition-all duration-200 ${
-                    downloadFormat === 'docs'
-                      ? 'bg-blue-600/20 text-blue-400 shadow-sm border border-blue-500/20'
-                      : 'text-surface-500 hover:text-surface-300'
-                  }`}
-                >
-                  <IconSparkles className="w-3 h-3" />
-                  DOCS
-                </button>
-              </div>
-            </div>
 
             <button
               onClick={handleGenerate}
@@ -374,7 +395,7 @@ export default function App() {
               {isGenerating ? (
                 <>
                   <IconLoader className="w-5 h-5" />
-                  Generando {downloadFormat.toUpperCase()}...
+                  Generando PDF...
                 </>
               ) : status === 'success' ? (
                 <>
@@ -384,7 +405,7 @@ export default function App() {
               ) : (
                 <>
                   <IconSparkles className="w-5 h-5" />
-                  Generar {downloadFormat === 'pdf' ? 'PDF' : 'Documento'}
+                  Generar PDF
                 </>
               )}
             </button>
@@ -416,6 +437,11 @@ export default function App() {
             pageColor={pageColor}
             contentColor={contentColor}
             fontSize={fontSize}
+            onContentChange={(newContent, html) => updateContent(newContent, html)}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={canUndo}
+            canRedo={canRedo}
           />
         </section>
       </main>

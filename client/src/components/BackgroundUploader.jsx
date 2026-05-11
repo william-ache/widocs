@@ -4,7 +4,6 @@ import { IconImage, IconX, IconTrash } from './Icons';
 export default function BackgroundUploader({ background, onBackgroundChange }) {
   const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
-  const [inputMode, setInputMode] = useState('upload'); // 'upload' | 'url'
   const fileInputRef = useRef(null);
 
   const handleFile = useCallback((file) => {
@@ -30,12 +29,6 @@ export default function BackgroundUploader({ background, onBackgroundChange }) {
     handleFile(e.dataTransfer.files[0]);
   }, [handleFile]);
 
-  const handleUrlChange = (e) => {
-    const url = e.target.value;
-    onBackgroundChange(url);
-    setPreviewUrl(url);
-  };
-
   const clearBackground = () => {
     onBackgroundChange('');
     setPreviewUrl('');
@@ -51,34 +44,8 @@ export default function BackgroundUploader({ background, onBackgroundChange }) {
         </span>
       </label>
 
-      {/* ── Mode toggle ── */}
-      <div className="flex rounded-lg bg-surface-800/60 border border-surface-700/30 p-0.5">
-        <button
-          onClick={() => setInputMode('upload')}
-          className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-            inputMode === 'upload'
-              ? 'bg-accent-600/30 text-accent-300 shadow-sm'
-              : 'text-surface-400 hover:text-surface-300'
-          }`}
-          id="mode-upload-btn"
-        >
-          Subir archivo
-        </button>
-        <button
-          onClick={() => setInputMode('url')}
-          className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-            inputMode === 'url'
-              ? 'bg-accent-600/30 text-accent-300 shadow-sm'
-              : 'text-surface-400 hover:text-surface-300'
-          }`}
-          id="mode-url-btn"
-        >
-          URL externa
-        </button>
-      </div>
-
       {/* ── Upload mode ── */}
-      {inputMode === 'upload' && !previewUrl && (
+      {!previewUrl && (
         <div
           className={`dropzone !min-h-[120px] !p-5 group ${isDragging ? 'drag-over' : ''}`}
           onDrop={handleDrop}
@@ -103,20 +70,6 @@ export default function BackgroundUploader({ background, onBackgroundChange }) {
             PNG, JPG, SVG, WebP
           </p>
         </div>
-      )}
-
-      {/* ── URL mode ── */}
-      {inputMode === 'url' && !previewUrl && (
-        <input
-          type="url"
-          placeholder="https://ejemplo.com/fondo.png"
-          onChange={handleUrlChange}
-          className="w-full px-3 py-2.5 bg-surface-900/50 border border-surface-700/40
-                     rounded-xl text-sm text-surface-200 font-mono
-                     placeholder:text-surface-600
-                     focus:border-accent-500/40 focus:outline-none transition-colors"
-          id="bg-url-input"
-        />
       )}
 
       {/* ── Preview ── */}
