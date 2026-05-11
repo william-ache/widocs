@@ -67,13 +67,17 @@ app.post('/api/generate-pdf', async (req, res) => {
     const htmlBody = isHtml ? content : md.render(content);
     const fullHtml = buildHtmlDocument(htmlBody, background, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize);
 
+    console.log('[WiDocs] Launching Puppeteer...');
     browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
     });
 
     const page = await browser.newPage();
-    await page.setContent(fullHtml, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.setContent(fullHtml, { waitUntil: 'networkidle0', timeout: 120000 });
+
+    // Small delay to ensure all styles/images are fully rendered
+    await new Promise(r => setTimeout(r, 500));
 
     const pdfBuffer = await page.pdf({
       width: `${paperWidth}mm`,
@@ -83,13 +87,16 @@ app.post('/api/generate-pdf', async (req, res) => {
     });
 
     await browser.close();
+    browser = null;
+
+    console.log(`[WiDocs] PDF generated OK — ${pdfBuffer.length} bytes`);
 
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="widocs.pdf"',
       'Content-Length': pdfBuffer.length,
     });
-    return res.send(pdfBuffer);
+    return res.end(Buffer.from(pdfBuffer));
   } catch (err) {
     console.error('[WiDocs] API Error:', err);
     if (browser) await browser.close().catch(() => {});
@@ -151,24 +158,16 @@ function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30,
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WiDocs Document</title>
 
-  <!-- Google Font: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
-    /* ===================================================
-       @page — Background image repeated on EVERY page
-       =================================================== */
     @page {
       size: ${paperWidth}mm ${paperHeight}mm;
-      margin: 0;                       /* margins are handled by Puppeteer */
+      margin: 0;
     }
 
-    /* Full-page background via a fixed pseudo-element.
-       This is the most reliable cross-browser technique for
-       getting Puppeteer to render a bg on every page.           */
     html {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -177,8 +176,7 @@ function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30,
     body {
       margin: 0;
       padding: 0;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                   Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: ${fontSize}pt;
       line-height: 1.7;
       color: #1a1a2e;
@@ -186,7 +184,7 @@ function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30,
       background-color: ${pageColor};
     }
 
-    /* Background image — fixed so it repeats on every printed page */
+    /* Background image — fixed pseudo-element so it repeats on every printed page */
     body::before {
       content: '';
       position: fixed;
@@ -198,28 +196,39 @@ function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30,
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      z-index: -1;
+      z-index: 0;
     }
 
-    /* ===================================================
-       Content Wrapper
-       =================================================== */
-    .content {
+    /* Table-based margin system — thead/tfoot repeat on every page */
+    .master-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
       position: relative;
       z-index: 1;
-      padding-top: ${marginTop}mm;
-      padding-bottom: ${marginBottom}mm;
-      padding-left: ${marginX}mm;
-      padding-right: ${marginX}mm;
-      box-sizing: border-box;
-      min-height: 100vh;
-      background-color: ${contentColor};
-      background-clip: content-box;
+      border: none;
     }
 
-    /* ===================================================
-       Typography & Markdown Elements
-       =================================================== */
+    .master-table td {
+      border: none;
+      outline: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .margin-top-spacer { height: ${marginTop}mm; }
+    .margin-bottom-spacer { height: ${marginBottom}mm; }
+
+    .content-area {
+      padding-left: ${marginX}mm !important;
+      padding-right: ${marginX}mm !important;
+      background-color: ${contentColor};
+      background-clip: content-box;
+      word-wrap: break-word;
+      vertical-align: top;
+    }
+
+    /* Typography */
     h1, h2, h3, h4, h5, h6 {
       color: #0f0f23;
       margin-top: 1.4em;
@@ -227,29 +236,20 @@ function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30,
       font-weight: 700;
       line-height: 1.3;
     }
-
-    h1 { font-size: 2em;   border-bottom: 2px solid #e0e0e0; padding-bottom: 0.3em; }
+    h1 { font-size: 2em; border-bottom: 2px solid #e0e0e0; padding-bottom: 0.3em; }
     h2 { font-size: 1.5em; border-bottom: 1px solid #e8e8e8; padding-bottom: 0.25em; }
     h3 { font-size: 1.25em; }
-    h4 { font-size: 1.1em;  }
 
-    p {
-      margin: 0.8em 0;
-      text-align: justify;
-    }
+    p { margin: 0.8em 0; text-align: justify; }
 
-    a {
-      color: #2563eb;
-      text-decoration: none;
-    }
+    a { color: #2563eb; text-decoration: none; }
 
-    /* ── Code ── */
     code {
       background: rgba(99, 102, 241, 0.08);
       padding: 0.15em 0.4em;
       border-radius: 4px;
       font-size: 0.9em;
-      font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-family: 'Fira Code', 'Consolas', monospace;
     }
 
     pre {
@@ -262,24 +262,11 @@ function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30,
       line-height: 1.5;
       margin: 1em 0;
     }
+    pre code { background: transparent; padding: 0; color: inherit; }
 
-    pre code {
-      background: transparent;
-      padding: 0;
-      color: inherit;
-    }
+    ul, ol { padding-left: 1.8em; margin: 0.6em 0; }
+    li { margin-bottom: 0.3em; }
 
-    /* ── Lists ── */
-    ul, ol {
-      padding-left: 1.8em;
-      margin: 0.6em 0;
-    }
-
-    li {
-      margin-bottom: 0.3em;
-    }
-
-    /* ── Blockquote ── */
     blockquote {
       margin: 1em 0;
       padding: 0.6em 1.2em;
@@ -288,55 +275,34 @@ function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30,
       border-radius: 0 6px 6px 0;
       color: #374151;
     }
+    blockquote p { margin: 0.3em 0; }
 
-    blockquote p {
-      margin: 0.3em 0;
-    }
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.95em; }
+    th, td { border: 1px solid #d1d5db; padding: 0.55em 0.8em; text-align: left; }
+    th { background: #6366f1; color: #ffffff; font-weight: 600; }
+    tr:nth-child(even) { background: rgba(99, 102, 241, 0.04); }
 
-    /* ── Tables ── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1em 0;
-      font-size: 0.95em;
-    }
+    hr { border: none; border-top: 2px solid #e5e7eb; margin: 2em 0; }
 
-    th, td {
-      border: 1px solid #d1d5db;
-      padding: 0.55em 0.8em;
-      text-align: left;
-    }
-
-    th {
-      background: #6366f1;
-      color: #ffffff;
-      font-weight: 600;
-    }
-
-    tr:nth-child(even) {
-      background: rgba(99, 102, 241, 0.04);
-    }
-
-    /* ── Horizontal Rule ── */
-    hr {
-      border: none;
-      border-top: 2px solid #e5e7eb;
-      margin: 2em 0;
-    }
-
-    /* ── Images inside content ── */
-    .content img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 6px;
-      margin: 1em 0;
-    }
+    img { max-width: 100%; height: auto; border-radius: 6px; margin: 1em 0; }
   </style>
 </head>
 <body>
-  <div class="content">
-    ${htmlBody}
-  </div>
+  <table class="master-table">
+    <thead>
+      <tr><td class="margin-top-spacer"></td></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="content-area">
+          ${htmlBody}
+        </td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr><td class="margin-bottom-spacer"></td></tr>
+    </tfoot>
+  </table>
 </body>
 </html>`;
 }

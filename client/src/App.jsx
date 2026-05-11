@@ -204,9 +204,19 @@ export default function App() {
                       type="color" 
                       value={pageColor} 
                       onChange={(e) => setPageColor(e.target.value)}
-                      className="w-6 h-6 rounded border-0 bg-transparent cursor-pointer"
+                      className="w-6 h-6 rounded border-0 bg-transparent cursor-pointer flex-shrink-0"
                     />
-                    <span className="text-[10px] font-mono text-surface-300 uppercase">{pageColor}</span>
+                    <input 
+                      type="text" 
+                      value={pageColor} 
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setPageColor(v.startsWith('#') ? v : '#' + v);
+                      }}
+                      maxLength={7}
+                      className="w-full bg-transparent text-[10px] font-mono text-surface-300 uppercase outline-none border-none"
+                      placeholder="#ffffff"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -216,9 +226,19 @@ export default function App() {
                       type="color" 
                       value={contentColor} 
                       onChange={(e) => setContentColor(e.target.value)}
-                      className="w-6 h-6 rounded border-0 bg-transparent cursor-pointer"
+                      className="w-6 h-6 rounded border-0 bg-transparent cursor-pointer flex-shrink-0"
                     />
-                    <span className="text-[10px] font-mono text-surface-300 uppercase">{contentColor}</span>
+                    <input 
+                      type="text" 
+                      value={contentColor} 
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setContentColor(v.startsWith('#') ? v : '#' + v);
+                      }}
+                      maxLength={7}
+                      className="w-full bg-transparent text-[10px] font-mono text-surface-300 uppercase outline-none border-none"
+                      placeholder="#ffffff"
+                    />
                   </div>
                 </div>
               </div>
