@@ -1,0 +1,27 @@
+{
+  "name": "widocs-pdf-api",
+  "version": "1.0.0",
+  "description": "WiDocs — API para generación de PDFs a partir de Markdown con imagen de fondo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "pdf",
+    "markdown",
+    "puppeteer",
+    "express"
+  ],
+  "author": "Wydex",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "puppeteer": "^24.9.0",
+    "markdown-it": "^14.1.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Global Resets & Custom Styles ──────────────────────── */
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0f172a;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  ::selection {
+    background: rgba(99, 102, 241, 0.35);
+    color: #e0e7ff;
+  }
+}
+
+@layer components {
+  /* Glassmorphism card */
+  .glass-card {
+    @apply bg-surface-900/60 backdrop-blur-xl border border-surface-700/40 rounded-2xl;
+  }
+
+  /* Glowing border effect */
+  .glow-border {
+    box-shadow:
+      0 0 0 1px rgba(99, 102, 241, 0.15),
+      0 0 20px rgba(99, 102, 241, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center gap-2.5
+           px-6 py-3 rounded-xl font-semibold text-sm
+           bg-gradient-to-r from-accent-600 to-accent-500
+           text-white shadow-glow
+           transition-all duration-300 ease-out
+           hover:shadow-glow-lg hover:scale-[1.02] hover:from-accent-500 hover:to-accent-400
+           active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none;
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           px-4 py-2 rounded-lg text-sm font-medium
+           text-surface-300 border border-surface-700/50
+           transition-all duration-200
+           hover:bg-surface-800 hover:text-surface-100 hover:border-surface-600;
+  }
+
+  /* Label style */
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wider text-surface-400 mb-2;
+  }
+
+  /* Dropzone */
+  .dropzone {
+    @apply relative flex flex-col items-center justify-center
+           min-h-[200px] p-8
+           border-2 border-dashed border-surface-600/60 rounded-2xl
+           bg-surface-900/30
+           transition-all duration-300 ease-out cursor-pointer
+           hover:border-accent-500/50 hover:bg-surface-900/50;
+  }
+
+  .dropzone.drag-over {
+    @apply border-accent-400 bg-accent-500/10 scale-[1.01];
+  }
+
+  /* A4 preview frame */
+  .a4-frame {
+    aspect-ratio: 210 / 297;
+    @apply w-full bg-white rounded-lg shadow-2xl overflow-hidden;
+  }
+
+  /* Shimmer loader */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(99, 102, 241, 0) 0%,
+      rgba(99, 102, 241, 0.12) 50%,
+      rgba(99, 102, 241, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+}
+
+/* ── Textarea styling ────────────────────────────────────── */
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
+}
