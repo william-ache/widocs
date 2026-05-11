@@ -3,12 +3,8 @@ import { IconUpload, IconFile, IconX } from './Icons';
 
 export default function Dropzone({ content, onContentChange, fileName, onFileNameChange }) {
   const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef(null);
-
-  const handleFile = useCallback((file) => {
-    if (!file) return;
-
   const [isProcessing, setIsProcessing] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;

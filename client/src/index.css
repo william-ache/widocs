@@ -105,6 +105,18 @@
     background-size: 200% 100%;
     animation: shimmer 2s linear infinite;
   }
+
+  /* Universal Input Field */
+  .input-field {
+    @apply bg-surface-800/80 border border-surface-700/60 text-surface-100 rounded-xl px-4
+           outline-none transition-all duration-200
+           focus:border-accent-500/50 focus:bg-surface-800 focus:ring-1 focus:ring-accent-500/30;
+  }
+
+  /* Fix for select dropdown options visibility in dark mode */
+  select.input-field option {
+    @apply bg-[#0f172a] text-surface-200;
+  }
 }
 
 /* ── Textarea styling ────────────────────────────────────── */

@@ -44,77 +44,90 @@ app.get('/', (_req, res) => {
 
 // ── PDF Generation Endpoint ────────────────────────────────
 app.post('/api/generate-pdf', async (req, res) => {
-  const { content, background } = req.body;
+  const { 
+    content, 
+    background, 
+    isHtml, 
+    marginTop = 40, 
+    marginBottom = 30, 
+    marginX = 25,
+    paperWidth = 210,
+    paperHeight = 297,
+    pageColor = '#ffffff',
+    contentColor = '#ffffff',
+    fontSize = 12
+  } = req.body;
 
-  // ── Validation ────────────────────────────────────────────
-  if (!content) {
-    return res.status(400).json({
-      error: 'El campo "content" es obligatorio. Debe ser un string con contenido Markdown.',
-    });
+  if (!content || !background) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (content y background).' });
   }
 
-  if (!background) {
-    return res.status(400).json({
-      error: 'El campo "background" es obligatorio. Debe ser una URL o cadena Base64 de la imagen de fondo.',
-    });
-  }
-
+  let browser;
   try {
-    // 1. Determine HTML body
-    // If the client explicitly says it's HTML (e.g. from a .docx conversion), 
-    // we use it directly. Otherwise, we render it from Markdown.
-    const { isHtml } = req.body;
     const htmlBody = isHtml ? content : md.render(content);
+    const fullHtml = buildHtmlDocument(htmlBody, background, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize);
 
-    // 2. Determine the background-image CSS value
-    const bgImage = background;
-
-    // 3. Build the full HTML document
-    const fullHtml = buildHtmlDocument(htmlBody, bgImage);
-
-    // 4. Launch Puppeteer and generate the PDF
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-      ],
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
     const page = await browser.newPage();
+    await page.setContent(fullHtml, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    // Set content and wait for all resources (background image) to load
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
-
-    // Generate PDF — A4, 20 mm margins, print background enabled
     const pdfBuffer = await page.pdf({
-      format: 'A4',
-      margin: {
-        top: '20mm',
-        right: '20mm',
-        bottom: '20mm',
-        left: '20mm',
-      },
-      printBackground: true,          // ← critical for @page background
-      preferCSSPageSize: false,
+      width: `${paperWidth}mm`,
+      height: `${paperHeight}mm`,
+      margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+      printBackground: true,
     });
 
     await browser.close();
 
-    // 5. Send the PDF to the client
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename="widocs-document.pdf"',
+      'Content-Disposition': 'attachment; filename="widocs.pdf"',
       'Content-Length': pdfBuffer.length,
     });
     return res.send(pdfBuffer);
   } catch (err) {
-    console.error('[WiDocs] Error generating PDF:', err);
-    return res.status(500).json({
-      error: 'Error interno al generar el PDF.',
-      details: err.message,
+    console.error('[WiDocs] API Error:', err);
+    if (browser) await browser.close().catch(() => {});
+    return res.status(500).json({ error: 'Error al generar PDF', details: err.message });
+  }
+});
+
+// ── HTML/Normal Document Endpoint ──────────────────────────
+app.post('/api/generate-html', async (req, res) => {
+  const { content, background, isHtml, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize } = req.body;
+  try {
+    const htmlBody = isHtml ? content : md.render(content);
+    const fullHtml = buildHtmlDocument(htmlBody, background, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize);
+
+    res.set({
+      'Content-Type': 'text/html',
+      'Content-Disposition': 'attachment; filename="widocs.html"',
     });
+    return res.send(fullHtml);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error al generar HTML', details: err.message });
+  }
+});
+
+// ── Word Document (.doc) Endpoint ──────────────────────────
+app.post('/api/generate-docx', async (req, res) => {
+  const { content, background, isHtml, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize } = req.body;
+  try {
+    const htmlBody = isHtml ? content : md.render(content);
+    const fullHtml = buildHtmlDocument(htmlBody, background, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize);
+
+    res.set({
+      'Content-Type': 'application/msword',
+      'Content-Disposition': 'attachment; filename="widocs.doc"',
+    });
+    return res.send(fullHtml);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error al generar Word', details: err.message });
   }
 });
 
@@ -129,7 +142,7 @@ app.post('/api/generate-pdf', async (req, res) => {
  * @param {string} bgImage   – URL or data-URI for the background image
  * @returns {string} Full HTML string
  */
-function buildHtmlDocument(htmlBody, bgImage) {
+function buildHtmlDocument(htmlBody, bgImage, marginTop = 40, marginBottom = 30, marginX = 25, paperWidth = 210, paperHeight = 297, pageColor = '#ffffff', contentColor = '#ffffff', fontSize = 12) {
   return /* html */ `
 <!DOCTYPE html>
 <html lang="es">
@@ -149,7 +162,7 @@ function buildHtmlDocument(htmlBody, bgImage) {
        @page — Background image repeated on EVERY page
        =================================================== */
     @page {
-      size: A4;
+      size: ${paperWidth}mm ${paperHeight}mm;
       margin: 0;                       /* margins are handled by Puppeteer */
     }
 
@@ -166,10 +179,11 @@ function buildHtmlDocument(htmlBody, bgImage) {
       padding: 0;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
                    Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      font-size: 12pt;
+      font-size: ${fontSize}pt;
       line-height: 1.7;
       color: #1a1a2e;
       position: relative;
+      background-color: ${pageColor};
     }
 
     /* Background image — fixed so it repeats on every printed page */
@@ -193,6 +207,14 @@ function buildHtmlDocument(htmlBody, bgImage) {
     .content {
       position: relative;
       z-index: 1;
+      padding-top: ${marginTop}mm;
+      padding-bottom: ${marginBottom}mm;
+      padding-left: ${marginX}mm;
+      padding-right: ${marginX}mm;
+      box-sizing: border-box;
+      min-height: 100vh;
+      background-color: ${contentColor};
+      background-clip: content-box;
     }
 
     /* ===================================================
