@@ -11,53 +11,65 @@ const md = new MarkdownIt({
 
 // CSS that mirrors EXACTLY the backend buildHtmlDocument styles
 const getDocumentStyles = (fontSize) => `
-  h1, h2, h3, h4, h5, h6 {
+  .preview-content h1, .preview-content h2, .preview-content h3, .preview-content h4, .preview-content h5, .preview-content h6 {
     color: #0f0f23;
     margin-top: 1.4em;
     margin-bottom: 0.6em;
     font-weight: 700;
     line-height: 1.3;
   }
-  h1 { font-size: 2em; border-bottom: 2px solid #e0e0e0; padding-bottom: 0.3em; }
-  h2 { font-size: 1.5em; border-bottom: 1px solid #e8e8e8; padding-bottom: 0.25em; }
-  h3 { font-size: 1.25em; }
-  p { margin: 0.8em 0; text-align: justify; }
-  a { color: #2563eb; text-decoration: none; }
-  code {
+  .preview-content h1 { font-size: 2em; }
+  .preview-content h2 { font-size: 1.5em; }
+  .preview-content h3 { font-size: 1.25em; }
+  .preview-content p { margin: 0.8em 0; text-align: justify; }
+  .preview-content a { color: #2563eb; text-decoration: none; }
+  .preview-content code {
     background: rgba(99, 102, 241, 0.08);
     padding: 0.15em 0.4em;
     border-radius: 4px;
     font-size: 0.9em;
     font-family: 'Fira Code', 'Consolas', monospace;
   }
-  pre {
+  .preview-content pre {
     background: #1e1e2e;
     color: #cdd6f4;
     padding: 1em 1.2em;
     border-radius: 8px;
-    overflow-x: auto;
     font-size: 0.85em;
     line-height: 1.5;
     margin: 1em 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-all;
   }
-  pre code { background: transparent; padding: 0; color: inherit; }
-  ul, ol { padding-left: 1.8em; margin: 0.6em 0; }
-  li { margin-bottom: 0.3em; }
-  blockquote {
+  .preview-content pre code { background: transparent; padding: 0; color: inherit; }
+  .preview-content ul, .preview-content ol { padding-left: 1.8em; margin: 0.6em 0; }
+  .preview-content li { margin-bottom: 0.3em; }
+  .preview-content blockquote {
     margin: 1em 0;
     padding: 0.6em 1.2em;
     border-left: 4px solid #6366f1;
     background: rgba(99, 102, 241, 0.05);
     border-radius: 0 6px 6px 0;
     color: #374151;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
   }
-  blockquote p { margin: 0.3em 0; }
-  table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.95em; }
-  th, td { border: 1px solid #d1d5db; padding: 0.55em 0.8em; text-align: left; }
-  th { background: #6366f1; color: #ffffff; font-weight: 600; }
-  tr:nth-child(even) { background: rgba(99, 102, 241, 0.04); }
-  hr { border: none; border-top: 2px solid #e5e7eb; margin: 2em 0; }
-  img { max-width: 100%; height: auto; border-radius: 6px; margin: 1em 0; }
+  .preview-content blockquote p { margin: 0.3em 0; }
+  .preview-content table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.95em; table-layout: fixed; max-width: 100%; box-sizing: border-box; }
+  .preview-content th, .preview-content td { border: 1px solid #d1d5db; padding: 0.55em 0.8em; text-align: left; word-wrap: break-word; overflow-wrap: break-word; }
+  .preview-content th { background: #6366f1; color: #ffffff; font-weight: 600; }
+  .preview-content tr:nth-child(even) { background: rgba(99, 102, 241, 0.04); }
+  .preview-content hr { border: none; border-top: 2px solid #e5e7eb; margin: 2em 0; }
+  .preview-content img { max-width: 100%; height: auto; border-radius: 6px; margin: 1em 0; box-sizing: border-box; }
+
+  /* Force all elements inside preview to respect container bounds */
+  .preview-content * { box-sizing: border-box; max-width: 100%; }
 `;
 
 /**
@@ -65,7 +77,7 @@ const getDocumentStyles = (fontSize) => `
  * PHYSICALLY splits content into vertical sheets.
  * Uses the same markdown-it parser and CSS as the backend.
  */
-export default function LivePreview({ content, background, isHtml, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize, onContentChange, onUndo, onRedo, canUndo, canRedo }) {
+export default function LivePreview({ content, background, isHtml, marginTop, marginBottom, marginX, paperWidth, paperHeight, pageColor, contentColor, fontSize, onContentChange, onUndo, onRedo, canUndo, canRedo, onPagesChange }) {
   const [zoom, setZoom] = useState(0.6);
   const [pages, setPages] = useState([]);
   const hiddenRenderRef = useRef(null);
@@ -124,15 +136,152 @@ export default function LivePreview({ content, background, isHtml, marginTop, ma
       const newPages = [[]];
       let currentPageHeight = 0;
 
-      children.forEach((child) => {
-        const style = window.getComputedStyle(child);
-        const childHeight = child.getBoundingClientRect().height 
+      // Helper: measure an element's total height including margins
+      const measureHeight = (el) => {
+        const style = window.getComputedStyle(el);
+        return el.getBoundingClientRect().height 
           + parseFloat(style.marginTop) 
           + parseFloat(style.marginBottom);
+      };
+
+      // Helper: split a TABLE across pages by distributing rows
+      const splitTable = (tableEl, availableHeight, maxPageHeight) => {
+        const thead = tableEl.querySelector('thead');
+        const theadHtml = thead ? thead.outerHTML : '';
+        const theadHeight = thead ? measureHeight(thead) : 0;
+        const rows = Array.from(tableEl.querySelectorAll('tbody tr, tr')).filter(
+          r => !r.closest('thead') && !r.closest('tfoot')
+        );
         
-        if (currentPageHeight + childHeight > CONTENT_MAX_HEIGHT_PX && newPages[newPages.length - 1].length > 0) {
-          newPages.push([child.outerHTML]);
-          currentPageHeight = childHeight;
+        const chunks = [];
+        let currentRows = [];
+        let currentH = theadHeight;
+
+        rows.forEach(row => {
+          const rowH = measureHeight(row);
+          const limit = chunks.length === 0 ? availableHeight : maxPageHeight;
+          if (currentH + rowH > limit && currentRows.length > 0) {
+            chunks.push(currentRows);
+            currentRows = [row.outerHTML];
+            currentH = theadHeight + rowH;
+          } else {
+            currentRows.push(row.outerHTML);
+            currentH += rowH;
+          }
+        });
+        if (currentRows.length > 0) chunks.push(currentRows);
+
+        const tableAttrs = tableEl.className ? ` class="${tableEl.className}"` : '';
+        return chunks.map(rowGroup => 
+          `<table${tableAttrs} style="${tableEl.style.cssText}">${theadHtml}<tbody>${rowGroup.join('')}</tbody></table>`
+        );
+      };
+
+      // Helper: split a PRE across pages by lines
+      const splitPre = (preEl, availableHeight, maxPageHeight) => {
+        const text = preEl.textContent || '';
+        const lines = text.split('\n');
+        const totalH = preEl.getBoundingClientRect().height;
+        const lineH = lines.length > 0 ? totalH / lines.length : 20;
+        
+        const chunks = [];
+        let currentLines = [];
+        let currentH = 0;
+        const padding = 32; // approx 1em top + 1em bottom padding
+
+        lines.forEach(line => {
+          const limit = chunks.length === 0 ? (availableHeight - padding) : (maxPageHeight - padding);
+          if (currentH + lineH > limit && currentLines.length > 0) {
+            chunks.push(currentLines);
+            currentLines = [line];
+            currentH = lineH;
+          } else {
+            currentLines.push(line);
+            currentH += lineH;
+          }
+        });
+        if (currentLines.length > 0) chunks.push(currentLines);
+
+        const codeEl = preEl.querySelector('code');
+        const langClass = codeEl?.className || '';
+        return chunks.map(group => {
+          const escaped = group.join('\n').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          return langClass 
+            ? `<pre><code class="${langClass}">${escaped}</code></pre>`
+            : `<pre>${escaped}</pre>`;
+        });
+      };
+
+      // Helper: check if tag is a heading or hr
+      const isHeadingOrHr = (tag) => /^(H[1-6]|HR)$/.test(tag);
+
+      children.forEach((child) => {
+        const childHeight = measureHeight(child);
+        
+        // Case 1: fits on current page
+        if (currentPageHeight + childHeight <= CONTENT_MAX_HEIGHT_PX) {
+          newPages[newPages.length - 1].push(child.outerHTML);
+          currentPageHeight += childHeight;
+          return;
+        }
+        
+        // Case 2: doesn't fit — need to go to next page
+        if (newPages[newPages.length - 1].length > 0) {
+          // Pull orphaned headings/hr from end of current page to next page
+          const currentPage = newPages[newPages.length - 1];
+          const orphans = [];
+          while (currentPage.length > 0) {
+            // Check if the last item on the page is a heading or hr by parsing its tag
+            const lastHtml = currentPage[currentPage.length - 1];
+            const tagMatch = lastHtml.match(/^<(h[1-6]|hr)[\s>]/i);
+            if (tagMatch) {
+              orphans.unshift(currentPage.pop());
+            } else {
+              break;
+            }
+          }
+          
+          // Start new page with the orphaned headings + current element
+          if (childHeight <= CONTENT_MAX_HEIGHT_PX) {
+            newPages.push([...orphans, child.outerHTML]);
+            // Approximate orphan heights (small — headings are short)
+            currentPageHeight = childHeight + (orphans.length * 40);
+            return;
+          }
+          
+          // Element too tall even for a full page — start new page and split
+          newPages.push([...orphans]);
+          currentPageHeight = orphans.length * 40;
+        }
+
+        // Case 3: element is on an empty page but too tall — split
+        if (childHeight > CONTENT_MAX_HEIGHT_PX) {
+          const tag = child.tagName;
+          
+          if (tag === 'TABLE') {
+            const chunks = splitTable(child, CONTENT_MAX_HEIGHT_PX - currentPageHeight, CONTENT_MAX_HEIGHT_PX);
+            chunks.forEach((chunk, i) => {
+              if (i > 0) {
+                newPages.push([]);
+                currentPageHeight = 0;
+              }
+              newPages[newPages.length - 1].push(chunk);
+              currentPageHeight += CONTENT_MAX_HEIGHT_PX * 0.8;
+            });
+          } else if (tag === 'PRE') {
+            const chunks = splitPre(child, CONTENT_MAX_HEIGHT_PX - currentPageHeight, CONTENT_MAX_HEIGHT_PX);
+            chunks.forEach((chunk, i) => {
+              if (i > 0) {
+                newPages.push([]);
+                currentPageHeight = 0;
+              }
+              newPages[newPages.length - 1].push(chunk);
+              currentPageHeight += CONTENT_MAX_HEIGHT_PX * 0.8;
+            });
+          } else {
+            newPages[newPages.length - 1].push(child.outerHTML);
+            currentPageHeight = childHeight;
+          }
         } else {
           newPages[newPages.length - 1].push(child.outerHTML);
           currentPageHeight += childHeight;
@@ -142,9 +291,16 @@ export default function LivePreview({ content, background, isHtml, marginTop, ma
       pageRefs.current = [];
       setPages(newPages);
     }, 100); 
-
     return () => clearTimeout(timer);
   }, [content, isHtml, marginTop, marginBottom, marginX, paperWidth, paperHeight, fontSize]);
+
+  useEffect(() => {
+    if (onPagesChange) {
+      // Join the inner arrays (tags) into single HTML strings per page
+      const flatPages = pages.map(p => p.join(''));
+      onPagesChange(flatPages);
+    }
+  }, [pages, onPagesChange]);
 
   return (
     <div className="flex flex-col gap-3 h-full animate-fade-in relative">
@@ -199,7 +355,7 @@ export default function LivePreview({ content, background, isHtml, marginTop, ma
       {/* Hidden renderer — uses SAME styles as backend for accurate measurement */}
       <div 
         ref={hiddenRenderRef} 
-        className="fixed top-[-9999px] left-[-9999px] pointer-events-none" 
+        className="preview-content fixed top-[-9999px] left-[-9999px] pointer-events-none" 
         style={{ 
           width: `${(paperWidth - marginX * 2)}mm`, 
           fontSize: `${fontSize}pt`, 

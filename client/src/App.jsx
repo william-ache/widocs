@@ -22,6 +22,7 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [status, setStatus] = useState('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [paginatedPages, setPaginatedPages] = useState([]);
 
   // ── Undo / Redo History ──
   const historyRef = useRef([{ content: '', isHtml: false }]);
@@ -104,9 +105,9 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          content, 
+          content: paginatedPages.length > 0 ? paginatedPages : content, 
           background, 
-          isHtml, 
+          isHtml: paginatedPages.length > 0 ? true : isHtml, 
           marginTop, 
           marginBottom, 
           marginX,
@@ -442,6 +443,7 @@ export default function App() {
             onRedo={handleRedo}
             canUndo={canUndo}
             canRedo={canRedo}
+            onPagesChange={setPaginatedPages}
           />
         </section>
       </main>
@@ -450,7 +452,12 @@ export default function App() {
       <footer className="flex items-center justify-between px-6 py-2.5 border-t border-surface-800/50 text-[11px] text-surface-600">
         <span>WiDocs v1.0.0</span>
         <span className="font-mono">
-          {content.length > 0 ? `${content.split('\n').length} líneas · ${content.length.toLocaleString()} chars` : 'Sin contenido'}
+          {content.length > 0 ? (
+            <>
+              {paginatedPages.length > 0 && `${paginatedPages.length} páginas · `}
+              {content.split('\n').length} líneas · {content.length.toLocaleString()} chars
+            </>
+          ) : 'Sin contenido'}
         </span>
       </footer>
     </div>
