@@ -101,13 +101,16 @@ export default function App() {
     setErrorMsg('');
 
     try {
+      // CLEANUP: Filter out any empty ghost pages
+      const cleanPages = paginatedPages.filter(p => p && p.trim().length > 0);
+      
       const response = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          content: paginatedPages.length > 0 ? paginatedPages : content, 
+          content: cleanPages.length > 0 ? cleanPages : content, 
           background, 
-          isHtml: paginatedPages.length > 0 ? true : isHtml, 
+          isHtml: cleanPages.length > 0 ? true : isHtml, 
           marginTop, 
           marginBottom, 
           marginX,
@@ -173,33 +176,6 @@ export default function App() {
 
             <div className="h-px bg-surface-800/50" />
 
-            {/* ── Precision Margins ── */}
-            <div className="flex flex-col gap-4 animate-fade-in px-1">
-              <label className="label !mb-0 text-surface-200 font-bold flex items-center gap-2">
-                <div className="w-1 h-3.5 bg-accent-500 rounded-full" />
-                Tipografía y Estilo
-              </label>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-surface-500 font-bold uppercase">Tamaño de Fuente (pt)</span>
-                    <span className="text-xs font-mono text-accent-400 font-bold">{fontSize}pt</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="8" 
-                    max="24" 
-                    step="1"
-                    className="w-full h-1.5 bg-surface-800 rounded-lg appearance-none cursor-pointer accent-accent-500" 
-                    value={fontSize}
-                    onChange={(e) => setFontSize(Number(e.target.value))}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="h-px bg-surface-800/50" />
 
             {/* ── Paper Size Selection ── */}
             <div className="flex flex-col gap-4 animate-fade-in px-1">
@@ -304,6 +280,34 @@ export default function App() {
                       placeholder="#ffffff"
                     />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-surface-800/50" />
+
+            {/* ── Typography and Style ── */}
+            <div className="flex flex-col gap-4 animate-fade-in px-1">
+              <label className="label !mb-0 text-surface-200 font-bold flex items-center gap-2">
+                <div className="w-1 h-3.5 bg-accent-500 rounded-full" />
+                Tipografía y Estilo
+              </label>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-surface-500 font-bold uppercase">Tamaño de Fuente (pt)</span>
+                    <span className="text-xs font-mono text-accent-400 font-bold">{fontSize}pt</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="8" 
+                    max="24" 
+                    step="1"
+                    className="w-full h-1.5 bg-surface-800 rounded-lg appearance-none cursor-pointer accent-accent-500" 
+                    value={fontSize}
+                    onChange={(e) => setFontSize(Number(e.target.value))}
+                  />
                 </div>
               </div>
             </div>
@@ -449,12 +453,13 @@ export default function App() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="flex items-center justify-between px-6 py-2.5 border-t border-surface-800/50 text-[11px] text-surface-600">
-        <span>WiDocs v1.0.0</span>
-        <span className="font-mono">
+      <footer className="flex items-center justify-between px-6 py-2.5 border-t border-surface-800/50 text-[11px] text-surface-300">
+        <span className="font-medium opacity-80">WiDocs v1.0.0</span>
+        <span className="font-mono bg-surface-900/50 px-3 py-1 rounded-full border border-surface-700/30">
           {content.length > 0 ? (
             <>
-              {paginatedPages.length > 0 && `${paginatedPages.length} páginas · `}
+              {paginatedPages.length > 0 && <span className="text-accent-400 font-bold">{paginatedPages.length} páginas</span>}
+              <span className="mx-2 opacity-30">·</span>
               {content.split('\n').length} líneas · {content.length.toLocaleString()} chars
             </>
           ) : 'Sin contenido'}

@@ -22,6 +22,7 @@ const md = new MarkdownIt({
   html: true,        // Allow raw HTML inside Markdown
   linkify: true,     // Auto-convert URL-like text to links
   typographer: true, // Enable smart quotes & other typographic niceties
+  breaks: true,      // Convert \n in paragraphs into <br>
 });
 
 // ── Express setup ──────────────────────────────────────────
@@ -155,7 +156,23 @@ function buildHtmlDocument(content, bgImage, marginTop = 40, marginBottom = 30, 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     @page { size: ${paperWidth}mm ${paperHeight}mm; margin: 0; }
-    html, body { margin: 0; padding: 0; background: #f0f0f0; -webkit-print-color-adjust: exact !important; }
+    html, body { 
+      margin: 0; 
+      padding: 0; 
+      background: #f0f0f0; 
+      -webkit-print-color-adjust: exact !important; 
+      print-color-adjust: exact !important;
+      box-sizing: border-box;
+    }
+    
+    *, *:before, *:after { box-sizing: inherit; }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
     
     .page {
       position: relative;
@@ -187,27 +204,36 @@ function buildHtmlDocument(content, bgImage, marginTop = 40, marginBottom = 30, 
       font-size: ${fontSize}pt;
       line-height: 1.6;
       color: #1a1a2e;
+      background-color: ${contentColor};
     }
 
     /* Core Styles for Content */
-    .page-content h1, .page-content h2, .page-content h3 { color: #0f0f23; margin: 0.5em 0; line-height: 1.2; }
-    .page-content h1 { font-size: 2.2em; }
-    .page-content h2 { font-size: 1.7em; }
-    .page-content p { margin: 1em 0; text-align: justify; }
-    
-    .page-content table { 
-      width: 100%; border-collapse: collapse; margin: 1em 0; 
+    .page-content h1, .page-content h2, .page-content h3 { 
+      color: #0f0f23; 
+      margin: 0; 
+      line-height: 1.2; 
+      padding: 0.2em 0; 
+    }
+    .page-content h1 { font-size: 2em; }
+    .page-content h2 { font-size: 1.5em; }
+    .page-content h3 { font-size: 1.2em; }
+    .preview-content p, .page-content p { margin: 0; text-align: justify; line-height: 1.6; }
+    .preview-content ul, .preview-content ol, .page-content ul, .page-content ol { padding-left: 1.5em; margin: 0; }
+    .preview-content li, .page-content li { margin: 0; line-height: 1.6; }
+
+    .preview-content table, .page-content table { 
+      width: 100%; border-collapse: collapse; margin: 0; 
       table-layout: fixed; font-size: 0.9em;
     }
     .page-content th, .page-content td { 
-      border: 1px solid #d1d5db; padding: 0.6em; word-wrap: break-word; 
+      border: 1px solid #d1d5db; padding: 4px 6px; word-wrap: break-word; 
     }
     .page-content th { background: #6366f1; color: white; }
     .page-content tr:nth-child(even) { background: rgba(99,102,241,0.03); }
 
-    pre { 
-      background: #1e1e2e; color: #cdd6f4; padding: 1em; border-radius: 8px; 
-      font-size: 0.85em; white-space: pre-wrap; word-break: break-all; margin: 1em 0;
+    pre, code { 
+      background: transparent !important; color: inherit; padding: 0; 
+      font-size: inherit; white-space: pre-wrap; word-break: break-all; margin: 0;
     }
     
     img { max-width: 100%; border-radius: 4px; display: block; margin: 1em auto; }
